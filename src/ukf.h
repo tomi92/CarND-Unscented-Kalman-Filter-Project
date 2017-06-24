@@ -4,6 +4,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <tuple>
 #include "Eigen/Dense"
 #include "measurement_package.h"
 
@@ -128,6 +129,8 @@ class UKF {
   const Eigen::MatrixXd Sqrt(const Eigen::MatrixXd& M);
   void PredictSigmaPoints(double delta_t);
   void PredictMeanAndCovariance();
+  // returns z_pred, S
+  std::tuple<Eigen::VectorXd, Eigen::MatrixXd> PredictRadarMeasurement();
 };
 
 #endif /* UKF_H */

@@ -5,7 +5,6 @@
 using namespace std;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
-using std::vector;
 
 /**
  * Initializes Unscented Kalman filter
@@ -244,4 +243,48 @@ void UKF::PredictMeanAndCovariance() {
     x_diff(3) = Normalize(x_diff(3));
     P_ += weights_(i) * x_diff * x_diff.transpose();
   }
+}
+
+tuple<VectorXd, MatrixXd> UKF::PredictRadarMeasurement() {
+  const int n_z = 3;
+
+  VectorXd z_pred = VectorXd(n_z);
+  MatrixXd S = MatrixXd(n_z, n_z);  // measurement covariance matrix
+
+  MatrixXd Zsig = MatrixXd(n_z, n_sig_);
+
+  // transform sigma points into measurement space
+  for (int i = 0; i < Zsig.cols(); i++) {
+    double x = Xsig_pred_(0, i);
+    double y = Xsig_pred_(1, i);
+    double v = Xsig_pred_(2, i);
+    double psi = Xsig_pred_(3, i);
+    double psid = Xsig_pred_(4, i);
+
+    double rho = sqrt(x * x + y * y);
+    double phi = (rho < 0.001) ? 0 : atan2(y, x);
+    double rhod =
+        (rho < 0.001) ? 0 : (x * cos(psi) * v + y * sin(psi) * v) / rho;
+    Zsig(0, i) = rho;
+    Zsig(1, i) = phi;
+    Zsig(2, i) = rhod;
+  }
+
+  z_pred.fill(0.0);
+  for (int i = 0; i < Zsig.cols(); i++) {
+    z_pred += weights_(i) * Zsig.col(i);
+  }
+
+  S.fill(0.0);
+  for (int i = 0; i < Zsig.cols(); i++) {
+    VectorXd tmp = (Zsig.col(i) - z_pred);
+    tmp(1) = Normalize(tmp(1));
+    S += weights_(i) * tmp * tmp.transpose();
+  }
+
+  S(0, 0) += std_radr_ * std_radr_;
+  S(1, 1) += std_radphi_ * std_radphi_;
+  S(2, 2) += std_radrd_ * std_radrd_;
+
+  return make_tuple(z_pred, S);
 }
