@@ -10,14 +10,14 @@ using Eigen::VectorXd;
  * Initializes Unscented Kalman filter
  */
 UKF::UKF()
-    : use_laser_(true),
+    : use_laser_(true),  // TODO
       use_radar_(true),
       n_x_(5),
       n_aug_(n_x_ + 2),
       n_sig_(2 * n_aug_ + 1),
       lambda_(3 - n_aug_),  // tunable parameter
-      std_a_(30),           // TODO tune
-      std_yawdd_(30),       // TODO tune
+      std_a_(4),            // TODO tune
+      std_yawdd_(35),       // TODO tune
       std_laspx_(0.15),
       std_laspy_(0.15),
       std_radr_(0.3),
@@ -64,6 +64,8 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   Prediction(delta_t);
 
   if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
+    // std::cout << "angle: " << RadToDeg(meas_package.raw_measurements_(1)) <<
+    // std::endl;
     UpdateRadar(meas_package);
   } else {
     UpdateLidar(meas_package);
@@ -90,13 +92,35 @@ void UKF::Prediction(double delta_t) {
  */
 void UKF::UpdateLidar(MeasurementPackage meas_package) {
   /**
-  TODO:
-
-  Complete this function! Use lidar data to update the belief about the object's
-  position. Modify the state vector, x_, and covariance, P_.
-
   You'll also need to calculate the lidar NIS.
   */
+  const int n_z = 2;  // lidar
+  const VectorXd z = meas_package.raw_measurements_;
+
+  MatrixXd Zsig;
+  VectorXd z_pred;
+  MatrixXd S;
+  PredictLidarMeasurement(Zsig, z_pred, S);
+
+  MatrixXd Tc = MatrixXd::Zero(n_x_, n_z);  // cross correlation
+
+  for (int i = 0; i < Xsig_pred_.cols(); i++) {
+    VectorXd xdiff = Xsig_pred_.col(i) - x_;
+    xdiff(3) = Normalize(xdiff(3));
+    VectorXd zdiff = Zsig.col(i) - z_pred;
+    Tc += weights_(i) * xdiff * zdiff.transpose();
+  }
+
+  std::cout << "Tc " << Tc << std::endl;
+
+  MatrixXd K = Tc * S.inverse();  // Kalman gain
+
+  std::cout << "K " << K << " S " << S << std::endl;
+
+  VectorXd zdiff = z - z_pred;
+  x_ += K * zdiff;
+  // x_(3) = Normalize(x_(3));
+  P_ -= K * S * K.transpose();
 }
 
 /**
@@ -127,11 +151,16 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
     Tc += weights_(i) * xdiff * zdiff.transpose();
   }
 
+  std::cout << "Tc " << Tc << std::endl;
+
   MatrixXd K = Tc * S.inverse();  // Kalman gain
+
+  std::cout << "K " << K << " S " << S << std::endl;
 
   VectorXd zdiff = z - z_pred;
   zdiff(1) = Normalize(zdiff(1));
   x_ += K * zdiff;
+  //  x_(3) = Normalize(x_(3));
   P_ -= K * S * K.transpose();
 }
 
@@ -149,31 +178,31 @@ void UKF::InitStateFromRadar(const VectorXd& radar_data) {
 
   const double px = rho * cos(phi);
   const double py = rho * sin(phi);
-  double vel_abs = 0;
+  double vel_abs = 0.1;
   double yaw_angle = 0;
   const double yaw_rate = 0;
   double correl1 = 1000;
 
-  if (rho > 0.001) {  // rho is non-negative, so no need for abs
-    vel_abs = abs(rho_dot);
-    yaw_angle = rho_dot > 0 ? atan2(py, px) : Normalize(atan2(py, px) + kPi);
-    correl1 = 500;
-  }
+  // if (rho > 0.001) {  // rho is non-negative, so no need for abs
+  //   vel_abs = abs(rho_dot);
+  //   yaw_angle = rho_dot > 0 ? atan2(py, px) : Normalize(atan2(py, px) + kPi);
+  //   correl1 = 500;
+  // }
 
   // clang-format off
   x_ << px, py, vel_abs, yaw_angle, yaw_rate;
   P_ << 1, 0, 0, 0, 0,
         0, 1, 0, 0, 0,
-        0, 0, correl1, 0, 0,
-        0, 0, 0, correl1, 0,
-        0, 0, 0, 0, 1000;
+        0, 0, 10, 0, 0,
+        0, 0, 0, 10, 0,
+        0, 0, 0, 0, 10;
   // clang-format on
 }
 
 void UKF::InitStateFromLaser(const VectorXd& laser_data) {
   const double px = laser_data(0);
   const double py = laser_data(1);
-  const double vel_abs = 0;
+  const double vel_abs = 0.1;
   const double yaw_angle = 0;
   const double yaw_rate = 0;
 
@@ -181,13 +210,14 @@ void UKF::InitStateFromLaser(const VectorXd& laser_data) {
   x_ << px, py, vel_abs, yaw_angle, yaw_rate;
   P_ << 1, 0, 0, 0, 0,
         0, 1, 0, 0, 0,
-        0, 0, 1000, 0, 0,
-        0, 0, 0, 1000, 0,
-        0, 0, 0, 0, 1000;
+        0, 0, 10, 0, 0,
+        0, 0, 0, 10, 0,
+        0, 0, 0, 0, 10;
   // clang-format on
 }
 
 const double UKF::Normalize(double rad) {
+  std::cout << "normalizing " << RadToDeg(rad) << std::endl;
   while (rad <= -kPi) {
     rad += kTwoPi;
   }
@@ -196,6 +226,8 @@ const double UKF::Normalize(double rad) {
   }
   return rad;
 }
+
+const double UKF::RadToDeg(double rad) { return rad / kPi * 180.0; }
 
 void UKF::GenerateAugmentedSigmaPoints() {
   VectorXd x_aug = VectorXd(n_aug_);
@@ -249,6 +281,8 @@ void UKF::PredictSigmaPoints(double delta_t) {
       xsig_pred(4) += delta_t * noise_rateChange;
       // clang-format on
     }
+
+    // Xsig_pred_.col(i) = xsig_pred;
   }
 }
 
@@ -257,6 +291,7 @@ void UKF::PredictMeanAndCovariance() {
   for (int c = 0; c < Xsig_pred_.cols(); c++) {
     x_ += weights_(c) * Xsig_pred_.col(c);
   }
+  //  x_(3) = Normalize(x_(3));
 
   P_.fill(0.0);
   for (int i = 0; i < Xsig_pred_.cols(); i++) {
@@ -280,7 +315,6 @@ void UKF::PredictRadarMeasurement(MatrixXd& Zsig, VectorXd& z_pred,
     double y = Xsig_pred_(1, i);
     double v = Xsig_pred_(2, i);
     double psi = Xsig_pred_(3, i);
-    double psid = Xsig_pred_(4, i);
 
     double rho = sqrt(x * x + y * y);
     double phi = (rho < 0.001) ? 0 : atan2(y, x);
@@ -306,4 +340,34 @@ void UKF::PredictRadarMeasurement(MatrixXd& Zsig, VectorXd& z_pred,
   S(0, 0) += std_radr_ * std_radr_;
   S(1, 1) += std_radphi_ * std_radphi_;
   S(2, 2) += std_radrd_ * std_radrd_;
+}
+
+void UKF::PredictLidarMeasurement(MatrixXd& Zsig, VectorXd& z_pred,
+                                  MatrixXd& S) {
+  const int n_z = 2;  // lidar
+
+  Zsig = MatrixXd(n_z, n_sig_);
+  z_pred = VectorXd(n_z);
+  S = MatrixXd(n_z, n_z);  // measurement covariance matrix
+
+  // transform sigma points into measurement space
+  for (int i = 0; i < Zsig.cols(); i++) {
+    Zsig(0, i) = Xsig_pred_(0, i);
+    Zsig(1, i) = Xsig_pred_(1, i);
+    ;
+  }
+
+  z_pred.fill(0.0);
+  for (int i = 0; i < Zsig.cols(); i++) {
+    z_pred += weights_(i) * Zsig.col(i);
+  }
+
+  S.fill(0.0);
+  for (int i = 0; i < Zsig.cols(); i++) {
+    VectorXd tmp = (Zsig.col(i) - z_pred);
+    S += weights_(i) * tmp * tmp.transpose();
+  }
+
+  S(0, 0) += std_laspx_ * std_laspx_;
+  S(1, 1) += std_laspy_ * std_laspy_;
 }

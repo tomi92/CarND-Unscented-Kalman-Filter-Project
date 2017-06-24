@@ -14,6 +14,7 @@ using Eigen::VectorXd;
 class UKF {
  public:
   static constexpr double kPi = 3.14159265358979323846;
+  static constexpr double kHalfPi = 0.5 * kPi;
   static constexpr double kTwoPi = 2.0 * kPi;
 
   /** Settings **/
@@ -121,6 +122,7 @@ class UKF {
 
  private:
   const double Normalize(double rad);
+  const double RadToDeg(double rad);
   const Eigen::VectorXd GenerateWeights(int n_sig, int n_aug, double lambda);
   void InitStateFromRadar(const VectorXd& radar_data);
   void InitStateFromLaser(const Eigen::VectorXd& laser_data);
@@ -129,6 +131,8 @@ class UKF {
   void PredictSigmaPoints(double delta_t);
   void PredictMeanAndCovariance();
   void PredictRadarMeasurement(Eigen::MatrixXd& Zsig, Eigen::VectorXd& z_pred,
+                               Eigen::MatrixXd& S);
+  void PredictLidarMeasurement(Eigen::MatrixXd& Zsig, Eigen::VectorXd& z_pred,
                                Eigen::MatrixXd& S);
 };
 
