@@ -29,7 +29,8 @@ UKF::UKF()
       x_(n_x_),        // value uninitialized
       P_(n_x_, n_x_),  // value uninitialized
       time_us_(0),
-      Xsig_pred_(n_x_, n_sig_)  // value uninitialized
+      Xsig_aug_(n_aug_, n_sig_),  // value uninitialized
+      Xsig_pred_(n_x_, n_sig_)    // value uninitialized
 {}
 
 UKF::~UKF() {}
@@ -136,7 +137,7 @@ void UKF::InitStateFromRadar(const VectorXd& radar_data) {
   const double yaw_rate = 0;
   double correl1 = 1000;
 
-  if (rho > 0.01) {
+  if (rho > 0.001) {  // rho is non-negative, so no need for abs
     vel_abs = abs(rho_dot);
     yaw_angle = rho_dot > 0 ? atan2(py, px) : Normalize(atan2(py, px) + kPi);
     correl1 = 500;
@@ -179,9 +180,7 @@ const double UKF::Normalize(double rad) {
   return rad;
 }
 
-const MatrixXd UKF::GenerateAugmentedSigmaPoints() {
-  MatrixXd Xsig_aug = MatrixXd(n_aug_, n_sig_);
-
+void UKF::GenerateAugmentedSigmaPoints() {
   VectorXd x_aug = VectorXd(n_aug_);
   x_aug << x_, 0, 0;
 
@@ -191,9 +190,47 @@ const MatrixXd UKF::GenerateAugmentedSigmaPoints() {
   P_aug(6, 6) = std_yawdd_ * std_yawdd_;
 
   MatrixXd A = sqrt(lambda_ + n_x_) * Sqrt(P_aug);
-  Xsig_aug << x_aug, A.colwise() + x_aug, (-A).colwise() + x_aug;
-  return Xsig_aug;
+  Xsig_aug_ << x_aug, A.colwise() + x_aug, (-A).colwise() + x_aug;
 }
 
-const MatrixXd UKF::Sqrt(const Eigen::MatrixXd& M) { return M.llt().matrixL(); }
+const MatrixXd UKF::Sqrt(const MatrixXd& M) { return M.llt().matrixL(); }
 
+void UKF::PredictSigmaPoints(double delta_t) {
+  for (int i = 0; i < n_sig_; i++) {
+    auto xsig_aug = Xsig_aug_.col(i);
+    auto xsig_pred = Xsig_pred_.col(i);
+
+    double x = xsig_aug(0);
+    double y = xsig_aug(1);
+    double v = xsig_aug(2);
+    double ori = xsig_aug(3);
+    double turnRate = xsig_aug(4);
+    double noise_a = xsig_aug(5);
+    double noise_rateChange = xsig_aug(6);
+
+    double cos_ori = cos(ori);
+    double sin_ori = sin(ori);
+    double half_delta_t_2 = 0.5 * delta_t * delta_t;
+
+    xsig_pred = xsig_aug.head(n_x_);
+
+    if (abs(turnRate) < 0.001) {
+      // clang-format off
+      xsig_pred(0) += v * cos_ori * delta_t + half_delta_t_2 * cos_ori * noise_a;
+      xsig_pred(1) += v * sin_ori * delta_t + half_delta_t_2 * sin_ori * noise_a;
+      xsig_pred(2) += delta_t * noise_a;
+      xsig_pred(3) += half_delta_t_2 * noise_rateChange;
+      xsig_pred(4) += delta_t * noise_rateChange;
+      // clang-format on
+    } else {
+      // clang-format off
+      const double ori2 = ori + turnRate*delta_t;
+      xsig_pred(0) += (v / turnRate) * (sin(ori2) - sin_ori) + half_delta_t_2 * cos_ori * noise_a;
+      xsig_pred(1) += (v / turnRate) * (-cos(ori2) + cos_ori) + half_delta_t_2 * sin_ori * noise_a;
+      xsig_pred(2) += delta_t * noise_a;
+      xsig_pred(3) += turnRate * delta_t + half_delta_t_2 * noise_rateChange; 
+      xsig_pred(4) += delta_t * noise_rateChange;
+      // clang-format on
+    }
+  }
+}

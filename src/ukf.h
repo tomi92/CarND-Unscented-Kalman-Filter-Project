@@ -78,6 +78,9 @@ class UKF {
 
   /** Working variables **/
 
+  ///* augmented sigma points matrix
+  MatrixXd Xsig_aug_;
+
   ///* predicted sigma points matrix
   MatrixXd Xsig_pred_;
 
@@ -121,8 +124,9 @@ class UKF {
   const Eigen::VectorXd GenerateWeights(int n_sig, int n_aug, double lambda);
   void InitStateFromRadar(const VectorXd& radar_data);
   void InitStateFromLaser(const Eigen::VectorXd& laser_data);
-  const Eigen::MatrixXd GenerateAugmentedSigmaPoints();
+  void GenerateAugmentedSigmaPoints();
   const Eigen::MatrixXd Sqrt(const Eigen::MatrixXd& M);
+  void PredictSigmaPoints(double delta_t);
 };
 
 #endif /* UKF_H */
