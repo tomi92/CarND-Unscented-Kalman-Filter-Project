@@ -3,8 +3,8 @@
 
 #include <fstream>
 #include <string>
-#include <vector>
 #include <tuple>
+#include <vector>
 #include "Eigen/Dense"
 #include "measurement_package.h"
 
@@ -13,7 +13,6 @@ using Eigen::VectorXd;
 
 class UKF {
  public:
-
   static constexpr double kPi = 3.14159265358979323846;
   static constexpr double kTwoPi = 2.0 * kPi;
 
@@ -129,8 +128,8 @@ class UKF {
   const Eigen::MatrixXd Sqrt(const Eigen::MatrixXd& M);
   void PredictSigmaPoints(double delta_t);
   void PredictMeanAndCovariance();
-  // returns z_pred, S
-  std::tuple<Eigen::VectorXd, Eigen::MatrixXd> PredictRadarMeasurement();
+  void PredictRadarMeasurement(Eigen::MatrixXd& Zsig, Eigen::VectorXd& z_pred,
+                               Eigen::MatrixXd& S);
 };
 
 #endif /* UKF_H */

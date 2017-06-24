@@ -106,12 +106,33 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 void UKF::UpdateRadar(MeasurementPackage meas_package) {
   /**
   TODO:
-
-  Complete this function! Use radar data to update the belief about the object's
-  position. Modify the state vector, x_, and covariance, P_.
-
   You'll also need to calculate the radar NIS.
   */
+
+  const int n_z = 3;  // radar
+  const VectorXd z = meas_package.raw_measurements_;
+
+  MatrixXd Zsig;
+  VectorXd z_pred;
+  MatrixXd S;
+  PredictRadarMeasurement(Zsig, z_pred, S);
+
+  MatrixXd Tc = MatrixXd::Zero(n_x_, n_z);  // cross correlation
+
+  for (int i = 0; i < Xsig_pred_.cols(); i++) {
+    VectorXd xdiff = Xsig_pred_.col(i) - x_;
+    xdiff(3) = Normalize(xdiff(3));
+    VectorXd zdiff = Zsig.col(i) - z_pred;
+    zdiff(1) = Normalize(zdiff(1));
+    Tc += weights_(i) * xdiff * zdiff.transpose();
+  }
+
+  MatrixXd K = Tc * S.inverse();  // Kalman gain
+
+  VectorXd zdiff = z - z_pred;
+  zdiff(1) = Normalize(zdiff(1));
+  x_ += K * zdiff;
+  P_ -= K * S * K.transpose();
 }
 
 const VectorXd UKF::GenerateWeights(int n_sig, int n_aug, double lambda) {
@@ -245,13 +266,13 @@ void UKF::PredictMeanAndCovariance() {
   }
 }
 
-tuple<VectorXd, MatrixXd> UKF::PredictRadarMeasurement() {
-  const int n_z = 3;
+void UKF::PredictRadarMeasurement(MatrixXd& Zsig, VectorXd& z_pred,
+                                  MatrixXd& S) {
+  const int n_z = 3;  // radar
 
-  VectorXd z_pred = VectorXd(n_z);
-  MatrixXd S = MatrixXd(n_z, n_z);  // measurement covariance matrix
-
-  MatrixXd Zsig = MatrixXd(n_z, n_sig_);
+  Zsig = MatrixXd(n_z, n_sig_);
+  z_pred = VectorXd(n_z);
+  S = MatrixXd(n_z, n_z);  // measurement covariance matrix
 
   // transform sigma points into measurement space
   for (int i = 0; i < Zsig.cols(); i++) {
@@ -285,6 +306,4 @@ tuple<VectorXd, MatrixXd> UKF::PredictRadarMeasurement() {
   S(0, 0) += std_radr_ * std_radr_;
   S(1, 1) += std_radphi_ * std_radphi_;
   S(2, 2) += std_radrd_ * std_radrd_;
-
-  return make_tuple(z_pred, S);
 }
