@@ -52,7 +52,25 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     return;
   }
 
-  // TODO
+  double delta_t = (meas_package.timestamp_ - time_us_) / 1000000.0;
+  
+  // Prevent strange behaviour when changing datasets
+  if (delta_t < 0 || delta_t > 1) {
+    delta_t = 1;
+  }
+
+  time_us_ = meas_package.timestamp_;
+
+  Prediction(delta_t);
+
+  if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
+    UpdateRadar(meas_package);
+  } else {
+    UpdateLidar(meas_package);
+  }
+
+  cout << "x_ = " << x_ << endl;
+  cout << "P_ = " << P_ << endl;
 }
 
 /**
@@ -113,33 +131,42 @@ void UKF::InitStateFromRadar(const VectorXd& radar_data) {
 
   const double px = rho * cos(phi);
   const double py = rho * sin(phi);
-  const double vel_abs = abs(rho_dot);  // rough lower estimate
-  const double yaw_angle =
-      rho_dot > 0 ? atan2(py, px)
-                  : Normalize(atan2(py, px) + kPi);  // rough estimate
-  const double yaw_rate = 0;                         // unknown
+  double vel_abs = 0;
+  double yaw_angle = 0;
+  const double yaw_rate = 0;
+  double correl1 = 1000;
 
+  if(rho > 0.01) {
+    vel_abs = abs(rho_dot);  
+    yaw_angle = rho_dot > 0 ? atan2(py, px) : Normalize(atan2(py, px) + kPi);
+    correl1 = 500;
+  }
+
+  // clang-format off
   x_ << px, py, vel_abs, yaw_angle, yaw_rate;
   P_ << 1, 0, 0, 0, 0,
-      0, 1, 0, 0, 0,
-      0, 0, 500, 0, 0,
-      0, 0, 0, 500, 0,
-      0, 0, 0, 0, 1000;
+        0, 1, 0, 0, 0,
+        0, 0, correl1, 0, 0,
+        0, 0, 0, correl1, 0,
+        0, 0, 0, 0, 1000;
+  // clang-format on
 }
 
 void UKF::InitStateFromLaser(const VectorXd& laser_data) {
   const double px = laser_data(0);
   const double py = laser_data(1);
-  const double vel_abs = 0;    // unknown
-  const double yaw_angle = 0;  // unknown
-  const double yaw_rate = 0;   // unknown
+  const double vel_abs = 0;
+  const double yaw_angle = 0;
+  const double yaw_rate = 0;
 
+  // clang-format off
   x_ << px, py, vel_abs, yaw_angle, yaw_rate;
   P_ << 1, 0, 0, 0, 0,
-      0, 1, 0, 0, 0,
-      0, 0, 1000, 0, 0,
-      0, 0, 0, 1000, 0,
-      0, 0, 0, 0, 1000;
+        0, 1, 0, 0, 0,
+        0, 0, 1000, 0, 0,
+        0, 0, 0, 1000, 0,
+        0, 0, 0, 0, 1000;
+  // clang-format on
 }
 
 const double UKF::Normalize(double rad) {
