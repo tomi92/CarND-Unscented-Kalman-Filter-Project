@@ -127,6 +127,7 @@ class UKF {
   void GenerateAugmentedSigmaPoints();
   const Eigen::MatrixXd Sqrt(const Eigen::MatrixXd& M);
   void PredictSigmaPoints(double delta_t);
+  void PredictMeanAndCovariance();
 };
 
 #endif /* UKF_H */

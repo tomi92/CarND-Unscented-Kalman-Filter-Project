@@ -80,12 +80,9 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
  * measurement and this one.
  */
 void UKF::Prediction(double delta_t) {
-  /**
-  TODO:
-
-  Complete this function! Estimate the object's location. Modify the state
-  vector, x_. Predict sigma points, the state, and the state covariance matrix.
-  */
+  GenerateAugmentedSigmaPoints();
+  PredictSigmaPoints(delta_t);
+  PredictMeanAndCovariance();
 }
 
 /**
@@ -232,5 +229,19 @@ void UKF::PredictSigmaPoints(double delta_t) {
       xsig_pred(4) += delta_t * noise_rateChange;
       // clang-format on
     }
+  }
+}
+
+void UKF::PredictMeanAndCovariance() {
+  x_.fill(0.0);
+  for (int c = 0; c < Xsig_pred_.cols(); c++) {
+    x_ += weights_(c) * Xsig_pred_.col(c);
+  }
+
+  P_.fill(0.0);
+  for (int i = 0; i < Xsig_pred_.cols(); i++) {
+    VectorXd x_diff = (Xsig_pred_.col(i) - x_);
+    x_diff(3) = Normalize(x_diff(3));
+    P_ += weights_(i) * x_diff * x_diff.transpose();
   }
 }
