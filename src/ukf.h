@@ -12,6 +12,10 @@ using Eigen::VectorXd;
 
 class UKF {
  public:
+
+  static constexpr double kPi = 3.14159265358979323846;
+  static constexpr double kTwoPi = 2.0 * kPi;
+
   /** Settings **/
 
   ///* if this is false, laser measurements will be ignored (except for init)
@@ -113,7 +117,10 @@ class UKF {
   void UpdateRadar(MeasurementPackage meas_package);
 
  private:
-  static VectorXd CalculateWeights(int n_sig, int n_aug, double lambda);
+  const double Normalize(double rad);
+  const Eigen::VectorXd CalculateWeights(int n_sig, int n_aug, double lambda);
+  void InitStateFromRadar(const VectorXd& radar_data);
+  void InitStateFromLaser(const Eigen::VectorXd& laser_data);
 };
 
 #endif /* UKF_H */

@@ -39,12 +39,20 @@ UKF::~UKF() {}
  * either radar or laser.
  */
 void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
-  /**
-  TODO:
+  if (!is_initialized_) {
+    if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
+      InitStateFromRadar(meas_package.raw_measurements_);
+    } else if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
+      InitStateFromLaser(meas_package.raw_measurements_);
+    }
 
-  Complete this function! Make sure you switch between lidar and radar
-  measurements.
-  */
+    time_us_ = meas_package.timestamp_;
+    is_initialized_ = true;
+
+    return;
+  }
+
+  // TODO
 }
 
 /**
@@ -91,9 +99,55 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   */
 }
 
-VectorXd UKF::CalculateWeights(int n_sig, int n_aug, double lambda) {
+const VectorXd UKF::CalculateWeights(int n_sig, int n_aug, double lambda) {
   VectorXd weights = VectorXd(n_sig);
   weights(0) = lambda / (lambda + n_aug);
   weights.segment(1, n_sig - 1).fill(0.5 / (n_aug + lambda));
   return weights;
+}
+
+void UKF::InitStateFromRadar(const VectorXd& radar_data) {
+  const double rho = radar_data(0);
+  const double phi = radar_data(1);
+  const double rho_dot = radar_data(2);
+
+  const double px = rho * cos(phi);
+  const double py = rho * sin(phi);
+  const double vel_abs = abs(rho_dot);  // rough lower estimate
+  const double yaw_angle =
+      rho_dot > 0 ? atan2(py, px)
+                  : Normalize(atan2(py, px) + kPi);  // rough estimate
+  const double yaw_rate = 0;                         // unknown
+
+  x_ << px, py, vel_abs, yaw_angle, yaw_rate;
+  P_ << 1, 0, 0, 0, 0,
+      0, 1, 0, 0, 0,
+      0, 0, 500, 0, 0,
+      0, 0, 0, 500, 0,
+      0, 0, 0, 0, 1000;
+}
+
+void UKF::InitStateFromLaser(const VectorXd& laser_data) {
+  const double px = laser_data(0);
+  const double py = laser_data(1);
+  const double vel_abs = 0;    // unknown
+  const double yaw_angle = 0;  // unknown
+  const double yaw_rate = 0;   // unknown
+
+  x_ << px, py, vel_abs, yaw_angle, yaw_rate;
+  P_ << 1, 0, 0, 0, 0,
+      0, 1, 0, 0, 0,
+      0, 0, 1000, 0, 0,
+      0, 0, 0, 1000, 0,
+      0, 0, 0, 0, 1000;
+}
+
+const double UKF::Normalize(double rad) {
+  while (rad <= -kPi) {
+    rad += kTwoPi;
+  }
+  while (rad > kPi) {
+    rad -= kTwoPi;
+  }
+  return rad;
 }
