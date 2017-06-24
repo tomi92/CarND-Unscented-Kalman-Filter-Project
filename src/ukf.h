@@ -118,9 +118,11 @@ class UKF {
 
  private:
   const double Normalize(double rad);
-  const Eigen::VectorXd CalculateWeights(int n_sig, int n_aug, double lambda);
+  const Eigen::VectorXd GenerateWeights(int n_sig, int n_aug, double lambda);
   void InitStateFromRadar(const VectorXd& radar_data);
   void InitStateFromLaser(const Eigen::VectorXd& laser_data);
+  const Eigen::MatrixXd GenerateAugmentedSigmaPoints();
+  const Eigen::MatrixXd Sqrt(const Eigen::MatrixXd& M);
 };
 
 #endif /* UKF_H */

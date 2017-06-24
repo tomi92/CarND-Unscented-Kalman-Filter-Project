@@ -24,7 +24,7 @@ UKF::UKF()
       std_radr_(0.3),
       std_radphi_(0.03),
       std_radrd_(0.3),
-      weights_(CalculateWeights(n_sig_, n_aug_, lambda_)),
+      weights_(GenerateWeights(n_sig_, n_aug_, lambda_)),
       is_initialized_(false),
       x_(n_x_),        // value uninitialized
       P_(n_x_, n_x_),  // value uninitialized
@@ -53,7 +53,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   }
 
   double delta_t = (meas_package.timestamp_ - time_us_) / 1000000.0;
-  
+
   // Prevent strange behaviour when changing datasets
   if (delta_t < 0 || delta_t > 1) {
     delta_t = 1;
@@ -117,7 +117,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   */
 }
 
-const VectorXd UKF::CalculateWeights(int n_sig, int n_aug, double lambda) {
+const VectorXd UKF::GenerateWeights(int n_sig, int n_aug, double lambda) {
   VectorXd weights = VectorXd(n_sig);
   weights(0) = lambda / (lambda + n_aug);
   weights.segment(1, n_sig - 1).fill(0.5 / (n_aug + lambda));
@@ -136,8 +136,8 @@ void UKF::InitStateFromRadar(const VectorXd& radar_data) {
   const double yaw_rate = 0;
   double correl1 = 1000;
 
-  if(rho > 0.01) {
-    vel_abs = abs(rho_dot);  
+  if (rho > 0.01) {
+    vel_abs = abs(rho_dot);
     yaw_angle = rho_dot > 0 ? atan2(py, px) : Normalize(atan2(py, px) + kPi);
     correl1 = 500;
   }
@@ -178,3 +178,22 @@ const double UKF::Normalize(double rad) {
   }
   return rad;
 }
+
+const MatrixXd UKF::GenerateAugmentedSigmaPoints() {
+  MatrixXd Xsig_aug = MatrixXd(n_aug_, n_sig_);
+
+  VectorXd x_aug = VectorXd(n_aug_);
+  x_aug << x_, 0, 0;
+
+  MatrixXd P_aug = MatrixXd::Zero(n_aug_, n_aug_);
+  P_aug.topLeftCorner(n_x_, n_x_) = P_;
+  P_aug(5, 5) = std_a_ * std_a_;
+  P_aug(6, 6) = std_yawdd_ * std_yawdd_;
+
+  MatrixXd A = sqrt(lambda_ + n_x_) * Sqrt(P_aug);
+  Xsig_aug << x_aug, A.colwise() + x_aug, (-A).colwise() + x_aug;
+  return Xsig_aug;
+}
+
+const MatrixXd UKF::Sqrt(const Eigen::MatrixXd& M) { return M.llt().matrixL(); }
+
