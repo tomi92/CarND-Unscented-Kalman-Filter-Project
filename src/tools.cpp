@@ -1,5 +1,5 @@
-#include <iostream>
 #include "tools.h"
+#include <iostream>
 
 using Eigen::VectorXd;
 using Eigen::MatrixXd;
