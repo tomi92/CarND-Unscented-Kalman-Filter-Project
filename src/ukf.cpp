@@ -6,6 +6,10 @@ using namespace std;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
+const double UKF::kPi = 3.14159265358979323846;
+const double UKF::kHalfPi = 0.5 * kPi;
+const double UKF::kTwoPi = 2.0 * kPi;
+
 /**
  * Initializes Unscented Kalman filter
  */
@@ -16,8 +20,8 @@ UKF::UKF()
       n_aug_(n_x_ + 2),
       n_sig_(2 * n_aug_ + 1),
       lambda_(3 - n_aug_),  // tunable parameter
-      std_a_(4),            // TODO tune
-      std_yawdd_(35),       // TODO tune
+      std_a_(4.05),            // TODO tune
+      std_yawdd_(25),       // TODO tune, 25,  
       std_laspx_(0.15),
       std_laspy_(0.15),
       std_radr_(0.3),
@@ -160,7 +164,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   VectorXd zdiff = z - z_pred;
   zdiff(1) = Normalize(zdiff(1));
   x_ += K * zdiff;
-  //  x_(3) = Normalize(x_(3));
+  //x_(3) = Normalize(x_(3));
   P_ -= K * S * K.transpose();
 }
 
@@ -178,7 +182,7 @@ void UKF::InitStateFromRadar(const VectorXd& radar_data) {
 
   const double px = rho * cos(phi);
   const double py = rho * sin(phi);
-  double vel_abs = 0.1;
+  double vel_abs = 0;
   double yaw_angle = 0;
   const double yaw_rate = 0;
   double correl1 = 1000;
@@ -193,8 +197,8 @@ void UKF::InitStateFromRadar(const VectorXd& radar_data) {
   x_ << px, py, vel_abs, yaw_angle, yaw_rate;
   P_ << 1, 0, 0, 0, 0,
         0, 1, 0, 0, 0,
-        0, 0, 10, 0, 0,
-        0, 0, 0, 10, 0,
+        0, 0, 100, 0, 0,
+        0, 0, 0, 36, 0,
         0, 0, 0, 0, 10;
   // clang-format on
 }
@@ -202,7 +206,7 @@ void UKF::InitStateFromRadar(const VectorXd& radar_data) {
 void UKF::InitStateFromLaser(const VectorXd& laser_data) {
   const double px = laser_data(0);
   const double py = laser_data(1);
-  const double vel_abs = 0.1;
+  const double vel_abs = 0;
   const double yaw_angle = 0;
   const double yaw_rate = 0;
 
@@ -210,8 +214,8 @@ void UKF::InitStateFromLaser(const VectorXd& laser_data) {
   x_ << px, py, vel_abs, yaw_angle, yaw_rate;
   P_ << 1, 0, 0, 0, 0,
         0, 1, 0, 0, 0,
-        0, 0, 10, 0, 0,
-        0, 0, 0, 10, 0,
+        0, 0, 100, 0, 0,
+        0, 0, 0, 36, 0,
         0, 0, 0, 0, 10;
   // clang-format on
 }
@@ -263,6 +267,7 @@ void UKF::PredictSigmaPoints(double delta_t) {
 
     xsig_pred = xsig_aug.head(n_x_);
 
+    // process model, adding integral + the effect of noise
     if (abs(turnRate) < 0.001) {
       // clang-format off
       xsig_pred(0) += v * cos_ori * delta_t + half_delta_t_2 * cos_ori * noise_a;

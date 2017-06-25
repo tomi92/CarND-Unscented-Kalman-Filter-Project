@@ -13,9 +13,9 @@ using Eigen::VectorXd;
 
 class UKF {
  public:
-  static constexpr double kPi = 3.14159265358979323846;
-  static constexpr double kHalfPi = 0.5 * kPi;
-  static constexpr double kTwoPi = 2.0 * kPi;
+  static const double kPi;
+  static const double kHalfPi;
+  static const double kTwoPi;
 
   /** Settings **/
 
