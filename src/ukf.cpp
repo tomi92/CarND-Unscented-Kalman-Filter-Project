@@ -25,7 +25,7 @@ UKF::UKF()
       std_laspx_(0.15),
       std_laspy_(0.15),
       std_radr_(0.3),
-      std_radphi_(0.03),
+      std_radphi_(0.03),//0.03
       std_radrd_(0.3),
       weights_(GenerateWeights(n_sig_, n_aug_, lambda_)),
       is_initialized_(false),
@@ -75,8 +75,10 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     UpdateLidar(meas_package);
   }
 
-  cout << "x_ = " << x_ << endl;
-  cout << "P_ = " << P_ << endl;
+  //cout << RadToDeg(x_(3)) << "°\t" << x_(2) << " m/s\t " << x_(4) << "°/s"  << std::endl;
+  cout << " x " <<   P_(0,0) <<" y " <<  P_(1,1) << " v " << P_(2,2) << " yaw " << P_(3,3) << " yawd " <<  P_(4,4)  << std::endl;
+  //cout << "x_ = " << x_ << endl;
+  //cout << "P_ = " << P_ << endl;
 }
 
 /**
@@ -115,11 +117,11 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
     Tc += weights_(i) * xdiff * zdiff.transpose();
   }
 
-  std::cout << "Tc " << Tc << std::endl;
+  //std::cout << "Tc " << Tc << std::endl;
 
   MatrixXd K = Tc * S.inverse();  // Kalman gain
 
-  std::cout << "K " << K << " S " << S << std::endl;
+  //std::cout << "K " << K << " S " << S << std::endl;
 
   VectorXd zdiff = z - z_pred;
   x_ += K * zdiff;
@@ -140,6 +142,8 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   const int n_z = 3;  // radar
   const VectorXd z = meas_package.raw_measurements_;
 
+//std::cout << RadToDeg(z(1)) << std::endl;
+
   MatrixXd Zsig;
   VectorXd z_pred;
   MatrixXd S;
@@ -155,11 +159,11 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
     Tc += weights_(i) * xdiff * zdiff.transpose();
   }
 
-  std::cout << "Tc " << Tc << std::endl;
+  //std::cout << "Tc " << Tc << std::endl;
 
   MatrixXd K = Tc * S.inverse();  // Kalman gain
 
-  std::cout << "K " << K << " S " << S << std::endl;
+  //std::cout << "K " << K << " S " << S << std::endl;
 
   VectorXd zdiff = z - z_pred;
   zdiff(1) = Normalize(zdiff(1));
@@ -197,9 +201,9 @@ void UKF::InitStateFromRadar(const VectorXd& radar_data) {
   x_ << px, py, vel_abs, yaw_angle, yaw_rate;
   P_ << 1, 0, 0, 0, 0,
         0, 1, 0, 0, 0,
-        0, 0, 100, 0, 0,
-        0, 0, 0, 36, 0,
-        0, 0, 0, 0, 10;
+        0, 0, 1000, 0, 0,
+        0, 0, 0, 1000, 0,
+        0, 0, 0, 0, 1;
   // clang-format on
 }
 
@@ -209,25 +213,26 @@ void UKF::InitStateFromLaser(const VectorXd& laser_data) {
   const double vel_abs = 0;
   const double yaw_angle = 0;
   const double yaw_rate = 0;
-
+std::cout << "init" << std::endl;
   // clang-format off
   x_ << px, py, vel_abs, yaw_angle, yaw_rate;
   P_ << 1, 0, 0, 0, 0,
         0, 1, 0, 0, 0,
-        0, 0, 100, 0, 0,
-        0, 0, 0, 36, 0,
-        0, 0, 0, 0, 10;
+        0, 0, 1000, 0, 0,
+        0, 0, 0, 48, 0,
+        0, 0, 0, 0, 0.5;
   // clang-format on
 }
 
 const double UKF::Normalize(double rad) {
-  std::cout << "normalizing " << RadToDeg(rad) << std::endl;
-  while (rad <= -kPi) {
+  //std::cout << "normalizing " << RadToDeg(rad) << std::endl;
+  while (rad < -kPi) {
     rad += kTwoPi;
   }
   while (rad > kPi) {
     rad -= kTwoPi;
   }
+  //std::cout << "result " << RadToDeg(rad) << std::endl;
   return rad;
 }
 
@@ -275,6 +280,7 @@ void UKF::PredictSigmaPoints(double delta_t) {
       xsig_pred(2) += delta_t * noise_a;
       xsig_pred(3) += half_delta_t_2 * noise_rateChange;
       xsig_pred(4) += delta_t * noise_rateChange;
+      //xsig_pred(3) = Normalize(xsig_pred(3));
       // clang-format on
     } else {
       // clang-format off
@@ -284,6 +290,7 @@ void UKF::PredictSigmaPoints(double delta_t) {
       xsig_pred(2) += delta_t * noise_a;
       xsig_pred(3) += turnRate * delta_t + half_delta_t_2 * noise_rateChange; 
       xsig_pred(4) += delta_t * noise_rateChange;
+      //xsig_pred(3) = Normalize(xsig_pred(3));
       // clang-format on
     }
 
@@ -293,9 +300,14 @@ void UKF::PredictSigmaPoints(double delta_t) {
 
 void UKF::PredictMeanAndCovariance() {
   x_.fill(0.0);
+  double xx = 0;
+  double yy = 0;
   for (int c = 0; c < Xsig_pred_.cols(); c++) {
     x_ += weights_(c) * Xsig_pred_.col(c);
+    xx += weights_(c) * cos(Xsig_pred_(3,c));
+    yy += weights_(c) * sin(Xsig_pred_(3,c));
   }
+  x_(3) = atan2(yy,xx);
   //  x_(3) = Normalize(x_(3));
 
   P_.fill(0.0);
@@ -331,9 +343,14 @@ void UKF::PredictRadarMeasurement(MatrixXd& Zsig, VectorXd& z_pred,
   }
 
   z_pred.fill(0.0);
+  double xx = 0;
+  double yy = 0;
   for (int i = 0; i < Zsig.cols(); i++) {
     z_pred += weights_(i) * Zsig.col(i);
+    xx += weights_(i) * cos(Zsig(1,i));
+    yy += weights_(i) * sin(Zsig(1,i));
   }
+  z_pred(1) = atan2(yy,xx);
 
   S.fill(0.0);
   for (int i = 0; i < Zsig.cols(); i++) {
@@ -359,7 +376,6 @@ void UKF::PredictLidarMeasurement(MatrixXd& Zsig, VectorXd& z_pred,
   for (int i = 0; i < Zsig.cols(); i++) {
     Zsig(0, i) = Xsig_pred_(0, i);
     Zsig(1, i) = Xsig_pred_(1, i);
-    ;
   }
 
   z_pred.fill(0.0);
