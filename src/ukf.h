@@ -77,6 +77,12 @@ class UKF {
   ///* time when the state is true, in us
   long long time_us_;
 
+  ///* last nis value for radar
+  double nis_radar_;
+
+  ///* last nis value for lidar
+  double nis_lidar_;
+
   /** Working variables **/
 
   ///* augmented sigma points matrix
